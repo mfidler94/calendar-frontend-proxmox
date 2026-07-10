@@ -12,6 +12,7 @@ export default function WeekView() {
     const { userSelectedDate, setDate} = useDateStore()
     const { openPopover, openEventSummary, events, selectedRoom } = useEventStore();
     const viewportRef = useRef(null);
+    const previousTimeRef = useRef(dayjs());
     const hourHeight = 64;
 
     useEffect(() => {
@@ -23,9 +24,24 @@ export default function WeekView() {
 
     useEffect(() => {
         if (!viewportRef.current) return;
-        const target = Math.max(0, (dayjs().hour() - 1) * hourHeight);
+
+        if (!userSelectedDate.isSame(currentTime, "isoWeek")) return;
+
+        const minutesFromStart = currentTime.hour() * 60 + currentTime.minute();
+        const target = Math.max(0, ((minutesFromStart - 60) / 60) * hourHeight);
         viewportRef.current.scrollTop = target;
-    }, [userSelectedDate]);
+    }, [currentTime, userSelectedDate]);
+
+    useEffect(() => {
+        const previousTime = previousTimeRef.current;
+        const crossedIntoNewWeek = !previousTime.isSame(currentTime, "isoWeek");
+
+        if (crossedIntoNewWeek && userSelectedDate.isSame(previousTime, "isoWeek")) {
+            setDate(currentTime);
+        }
+
+        previousTimeRef.current = currentTime;
+    }, [currentTime, setDate, userSelectedDate]);
 
     const minutesFromStart = currentTime.hour() * 60 + currentTime.minute();
     const currentTop = `${(minutesFromStart / (24 * 60)) * 100}%`;

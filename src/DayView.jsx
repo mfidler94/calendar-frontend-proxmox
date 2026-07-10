@@ -11,6 +11,7 @@ export default function DayView() {
     const { userSelectedDate, setDate} = useDateStore()
     const { openPopover, openEventSummary, events, selectedRoom } = useEventStore();
     const viewportRef = useRef(null);
+    const previousTimeRef = useRef(dayjs());
     const hourHeight = 64;
 
     useEffect(() => {
@@ -22,9 +23,24 @@ export default function DayView() {
 
     useEffect(() => {
         if (!viewportRef.current) return;
-        const target = Math.max(0, (dayjs().hour() - 1) * hourHeight);
+
+        if (!userSelectedDate.isSame(currentTime, "day")) return;
+
+        const minutesFromStart = currentTime.hour() * 60 + currentTime.minute();
+        const target = Math.max(0, ((minutesFromStart - 60) / 60) * hourHeight);
         viewportRef.current.scrollTop = target;
-    }, [userSelectedDate]);
+    }, [currentTime, userSelectedDate]);
+
+    useEffect(() => {
+        const previousTime = previousTimeRef.current;
+        const crossedIntoNewDay = !previousTime.isSame(currentTime, "day");
+
+        if (crossedIntoNewDay && userSelectedDate.isSame(previousTime, "day")) {
+            setDate(currentTime);
+        }
+
+        previousTimeRef.current = currentTime;
+    }, [currentTime, setDate, userSelectedDate]);
 
     const minutesFromStart = currentTime.hour() * 60 + currentTime.minute();
     const currentTop = `${(minutesFromStart / (24 * 60)) * 100}%`;
