@@ -8,6 +8,7 @@ import DayView from "@/DayView.jsx";
 import EventPopover from "@/EventPopover.jsx";
 import {useEffect} from "react";
 import EventSummaryPopover from "@/EventSummaryPopover.jsx";
+import dayjs from "dayjs";
 
 
 function MainView() {
@@ -65,7 +66,9 @@ function MainView() {
                 (<EventPopover
                     isOpen={isPopoverOpen}
                     onClose={closePopover}
-                    date={userSelectedDate}
+                    date={editingEvent?.start_time || editingEvent?.date
+                        ? dayjs(editingEvent.start_time || editingEvent.date)
+                        : userSelectedDate}
                     initialEvent={editingEvent}
                 />
                 )}

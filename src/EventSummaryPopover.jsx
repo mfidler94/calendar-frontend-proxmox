@@ -2,13 +2,14 @@
 import {useEffect, useRef} from "react";
 import {Button} from "@/components/ui/button.jsx";
 import dayjs from "dayjs";
-import {useEventStore} from "@/store.js";
+import {useDateStore, useEventStore} from "@/store.js";
 
 
 export default function EventSummaryPopover({ isOpen, onClose, event }) {
 
     const popoverRef = useRef(null)
     const { deleteEvent, openPopoverWithEvent } = useEventStore();
+    const { setDate } = useDateStore();
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -32,6 +33,9 @@ export default function EventSummaryPopover({ isOpen, onClose, event }) {
     const endValue = event.end_time;
 
     const handleEdit = () => {
+        if (startValue) {
+            setDate(dayjs(startValue));
+        }
         openPopoverWithEvent(event);
     };
 
