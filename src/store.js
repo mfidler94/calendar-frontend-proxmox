@@ -75,7 +75,7 @@ export const useEventStore = create(
         closeEventSummary: () => set({isEventSummaryOpen: false}),
         fetchUsers: async () => {
             try {
-                const response = await fetch(`${API_BASE}/users`);
+                const response = await fetch(`${API_BASE}/users`, { cache: "no-store" });
                 if (!response.ok) {
                     throw new Error("Nie udało się pobrać użytkowników");
                 }
@@ -89,7 +89,7 @@ export const useEventStore = create(
             set({ isLoading: true, error: null });
             try {
                 const room = get().selectedRoom;
-                const response = await fetch(buildEventsUrl(from, to, room));
+                const response = await fetch(buildEventsUrl(from, to, room), { cache: "no-store" });
                 if (!response.ok) {
                     throw new Error("Nie udało się pobrać spotkań");
                 }
@@ -113,9 +113,9 @@ export const useEventStore = create(
             }
 
             const data = await response.json();
-            const event = mapEvent(data.event);
-            set({ events: [...get().events, event] });
-            return event;
+            const createdEvents = (data.events || [data.event]).map(mapEvent);
+            set({ events: [...get().events, ...createdEvents] });
+            return createdEvents[0];
         },
         updateEvent: async (id, payload) => {
             const response = await fetch(`${API_BASE}/events/${id}`, {

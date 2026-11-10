@@ -9,7 +9,7 @@ export default function DayView() {
 
     const [currentTime, setCurrentTime] = useState(dayjs());
     const { userSelectedDate, setDate} = useDateStore()
-    const { openPopover, openEventSummary, events, selectedRoom } = useEventStore();
+    const { openPopover, openEventSummary, events, selectedRoom, updateEvent } = useEventStore();
     const viewportRef = useRef(null);
     const previousTimeRef = useRef(dayjs());
     const hourHeight = 64;
@@ -48,6 +48,46 @@ export default function DayView() {
     const isWeekend = userSelectedDate.day() === 0 || userSelectedDate.day() === 6;
     const roomEvents = events.filter((event) => event.room === selectedRoom);
 
+    const handleDragStart = (dragEvent, event) => {
+        dragEvent.stopPropagation();
+        dragEvent.dataTransfer.effectAllowed = "move";
+        dragEvent.dataTransfer.setData("application/x-calendar-event", JSON.stringify({
+            id: event.id,
+            startTime: event.start_time || event.date,
+            endTime: event.end_time
+        }));
+        dragEvent.dataTransfer.setData("text/plain", event.id);
+    };
+
+    const handleDrop = async (dragEvent, targetDate, targetHour) => {
+        dragEvent.preventDefault();
+        dragEvent.stopPropagation();
+
+        try {
+            const source = JSON.parse(dragEvent.dataTransfer.getData("application/x-calendar-event"));
+            const sourceStart = dayjs(source.startTime);
+            const sourceEnd = source.endTime ? dayjs(source.endTime) : sourceStart.add(60, "minute");
+            const durationMinutes = Math.max(30, sourceEnd.diff(sourceStart, "minute"));
+            const openingTime = targetDate.startOf("day").hour(6);
+            const closingTime = targetDate.startOf("day").hour(18);
+            const latestStart = closingTime.subtract(durationMinutes, "minute");
+
+            if (latestStart.isBefore(openingTime)) return;
+
+            let nextStart = targetDate.startOf("day").hour(targetHour).minute(0).second(0).millisecond(0);
+            if (nextStart.isBefore(openingTime)) nextStart = openingTime;
+            if (nextStart.isAfter(latestStart)) nextStart = latestStart;
+            if (sourceStart.isSame(nextStart)) return;
+
+            await updateEvent(source.id, {
+                startTime: nextStart.toISOString(),
+                endTime: nextStart.add(durationMinutes, "minute").toISOString()
+            });
+        } catch (error) {
+            console.error("Nie udało się przenieść spotkania", error);
+        }
+    };
+
     const renderEventBlocks = () => {
         const dayStart = userSelectedDate.startOf("day");
         const dayEnd = dayStart.add(1, "day");
@@ -74,11 +114,13 @@ export default function DayView() {
             return (
                 <div
                     key={event.id}
+                    draggable
+                    onDragStart={(dragEvent) => handleDragStart(dragEvent, event)}
                     onClick={(e) => {
                         e.stopPropagation();
                         openEventSummary(event);
                     }}
-                    className="absolute left-4 right-4 rounded-md border border-primary/40 bg-primary/70 px-3 py-2 text-sm text-primary-foreground shadow-sm"
+                    className="absolute left-4 right-4 cursor-grab rounded-md border border-primary/40 bg-primary/70 px-3 py-2 text-sm text-primary-foreground shadow-sm active:cursor-grabbing"
                     style={{ top: `${top}px`, height: `${height}px` }}
                     title={event.title}
                 >
@@ -137,7 +179,10 @@ export default function DayView() {
                     {getHours.map((hour, i) => (
                         <div
                             key={i}
-                            className="relative h-16 cursor-pointer border-b border-border/60 hover:bg-accent/30" onClick={() => { setDate(userSelectedDate.hour(hour.hour())); openPopover(); }}
+                            className="relative h-16 cursor-pointer border-b border-border/60 hover:bg-accent/30"
+                            onClick={() => { setDate(userSelectedDate.hour(hour.hour())); openPopover(); }}
+                            onDragOver={(dragEvent) => dragEvent.preventDefault()}
+                            onDrop={(dragEvent) => void handleDrop(dragEvent, userSelectedDate, hour.hour())}
                         />
                     ))}
 

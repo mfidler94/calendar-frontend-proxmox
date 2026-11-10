@@ -11,6 +11,7 @@ export default function SelectDropdown({
     buttonClassName = "w-24 justify-between",
     menuClassName = "w-32",
     scrollClassName = "h-60",
+    disabled = false,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -38,6 +39,7 @@ export default function SelectDropdown({
                 className={buttonClassName}
                 onClick={() => setIsOpen(!isOpen)}
                 type="button"
+                disabled={disabled}
             >
                 {label}
                 <ChevronDown className="h-4 w-4 opacity-50" />

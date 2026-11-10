@@ -2,7 +2,7 @@
 import {Button} from "@/components/ui/button.jsx";
 import {HiOutlineMenuAlt2, HiOutlineMenuAlt4, HiOutlineUsers} from "react-icons/hi";
 import {IoCloseSharp} from "react-icons/io5";
-import {FiClock} from "react-icons/fi";
+import {FiClock, FiRepeat} from "react-icons/fi";
 import {Input} from "@/components/ui/input.jsx";
 import dayjs from "dayjs";
 import AddTime from "@/AddTime.jsx";
@@ -59,6 +59,10 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
     const [room, setRoom] = useState(selectedRoom || "Mała sala");
     const [startTime, setStartTime] = useState("09:00");
     const [durationMinutes, setDurationMinutes] = useState(60);
+    const [isAllDay, setIsAllDay] = useState(false);
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [recurrenceIntervalWeeks, setRecurrenceIntervalWeeks] = useState(1);
+    const [weeksAhead, setWeeksAhead] = useState(4);
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,6 +70,15 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
         value,
         label: `${value} min`
     }));
+
+    const startTimeToMinutes = (timeValue) => {
+        const [hours, minutes] = timeValue.split(":").map(Number);
+        return hours * 60 + minutes;
+    };
+
+    const availableDurationOptions = durationOptions.filter(
+        ({ value }) => value <= 18 * 60 - startTimeToMinutes(startTime)
+    );
 
     const roomOptions = [
         { value: "Mała sala", label: "Mała sala" },
@@ -81,6 +94,10 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
             setSelectedGuests([]);
             setStartTime("09:00");
             setDurationMinutes(60);
+            setIsAllDay(false);
+            setIsRecurring(false);
+            setRecurrenceIntervalWeeks(1);
+            setWeeksAhead(4);
             return;
         }
 
@@ -96,10 +113,20 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
             const end = dayjs(initialEvent.end_time);
             const diff = Math.max(30, end.diff(start, "minute"));
             const normalized = Math.round(diff / 30) * 30;
-            setDurationMinutes(normalized);
+            const allDayReservation =
+                start.hour() === 6 &&
+                start.minute() === 0 &&
+                end.hour() === 18 &&
+                end.minute() === 0;
+            setDurationMinutes(allDayReservation ? 720 : normalized);
+            setIsAllDay(allDayReservation);
         } else {
             setDurationMinutes(60);
+            setIsAllDay(false);
         }
+        setIsRecurring(false);
+        setRecurrenceIntervalWeeks(1);
+        setWeeksAhead(4);
         const participantNames = initialEvent.participants || [];
         const resolved = participantNames.map((name) => {
             const match = users.find((user) => user.name === name);
@@ -204,6 +231,26 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
             .millisecond(0);
     }
 
+    const handleStartTimeSelect = (timeValue) => {
+        const maxDuration = 18 * 60 - startTimeToMinutes(timeValue);
+        setStartTime(timeValue);
+        setIsAllDay(false);
+        setDurationMinutes((currentDuration) => Math.min(currentDuration, maxDuration));
+    };
+
+    const handleAllDayToggle = () => {
+        setIsAllDay((currentValue) => {
+            const nextValue = !currentValue;
+            if (nextValue) {
+                setStartTime("06:00");
+                setDurationMinutes(720);
+            } else {
+                setDurationMinutes(60);
+            }
+            return nextValue;
+        });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
@@ -214,6 +261,10 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
         }
         if (!organizer.trim()) {
             setError("Organizator jest wymagany");
+            return;
+        }
+        if (!initialEvent && isRecurring && (!Number.isInteger(weeksAhead) || weeksAhead < 1 || weeksAhead > 52)) {
+            setError("Liczba tygodni musi być od 1 do 52");
             return;
         }
 
@@ -231,7 +282,13 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
                 endTime: endDate.toISOString(),
                 room: room,
                 visibility: "default",
-                status: "busy"
+                status: "busy",
+                recurrence: !initialEvent && isRecurring ? {
+                    enabled: true,
+                    intervalWeeks: recurrenceIntervalWeeks,
+                    weeksAhead,
+                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Warsaw"
+                } : { enabled: false }
             };
 
             if (initialEvent?.id) {
@@ -290,19 +347,82 @@ export default function EventPopover({isOpen, onClose, date, initialEvent}) {
                         <FiClock className="size-5 text-muted-foreground" />
                         <div className="flex flex-wrap items-center gap-3 text-sm text-foreground">
                             <p>{dayjs(date).locale("pl").format("D.MM (dddd)")}</p>
-                            <AddTime value={startTime} onTimeSelect={setStartTime} />
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Czas</span>
-                                <SelectDropdown
-                                    value={durationMinutes}
-                                    options={durationOptions}
-                                    onChange={(value) => setDurationMinutes(Number(value))}
-                                    buttonClassName="w-28 justify-between"
-                                    menuClassName="w-28"
-                                />
-                            </div>
+                            {isAllDay ? (
+                                <span className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
+                                    06:00-18:00
+                                </span>
+                            ) : (
+                                <>
+                                    <AddTime value={startTime} onTimeSelect={handleStartTimeSelect} />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">Czas</span>
+                                        <SelectDropdown
+                                            value={durationMinutes}
+                                            options={availableDurationOptions}
+                                            onChange={(value) => setDurationMinutes(Number(value))}
+                                            buttonClassName="w-28 justify-between"
+                                            menuClassName="w-28"
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            <Button
+                                type="button"
+                                variant={isAllDay ? "default" : "outline"}
+                                size="sm"
+                                onClick={handleAllDayToggle}
+                            >
+                                Cały dzień
+                            </Button>
                         </div>
                     </div>
+
+                    {!initialEvent ? (
+                        <div className="flex items-start space-x-3">
+                            <FiRepeat className="mt-2 size-5 text-muted-foreground" />
+                            <div className="w-full space-y-2">
+                                <Button
+                                    type="button"
+                                    variant={isRecurring ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setIsRecurring((currentValue) => !currentValue)}
+                                >
+                                    Spotkanie cykliczne
+                                </Button>
+                                {isRecurring && (
+                                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                                        <SelectDropdown
+                                            value={recurrenceIntervalWeeks}
+                                            options={[
+                                                { value: 1, label: "Co tydzień" },
+                                                { value: 2, label: "Co 2 tygodnie" }
+                                            ]}
+                                            onChange={(value) => setRecurrenceIntervalWeeks(Number(value))}
+                                            buttonClassName="w-32 justify-between"
+                                            menuClassName="w-32"
+                                        />
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            max="52"
+                                            value={weeksAhead}
+                                            onChange={(e) => setWeeksAhead(Number(e.target.value))}
+                                            className="h-9 w-20"
+                                            aria-label="Liczba tygodni do przodu"
+                                        />
+                                        <span className="text-muted-foreground">tygodni do przodu</span>
+                                        <p className="w-full text-xs text-muted-foreground">
+                                            Utworzy się {Math.floor(weeksAhead / recurrenceIntervalWeeks) + 1} spotkań, wliczając pierwszy termin.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : initialEvent.series_id ? (
+                        <p className="text-xs text-muted-foreground">
+                            To spotkanie jest częścią serii. Zmiany dotyczą tylko tego terminu.
+                        </p>
+                    ) : null}
 
                     <div className="flex items-center space-x-3">
                         <HiOutlineMenuAlt2 className="size-5 text-muted-foreground" />

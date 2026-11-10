@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button.jsx"
 import { ScrollArea } from "@/components/ui/scroll-area.jsx"
 import { ChevronDown } from "lucide-react"
 
-export default function AddTime({onTimeSelect, value}) {
+export default function AddTime({onTimeSelect, value, disabled = false}) {
     const isControlled = value !== undefined && value !== null
     const [isOpen, setIsOpen] = useState(false)
     const [internalTime, setInternalTime] = useState('00:00')
@@ -26,7 +26,7 @@ export default function AddTime({onTimeSelect, value}) {
 
     const generateTimeIntervals = () => {
         const intervals = []
-        for (let hour = 0; hour < 24; hour++) {
+        for (let hour = 6; hour < 18; hour++) {
             for (let minute = 0; minute < 60; minute += 30) {
                 intervals.push(
                     `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
@@ -53,6 +53,8 @@ export default function AddTime({onTimeSelect, value}) {
             <Button
                 variant="outline"
                 className="w-24 justify-between"
+                type="button"
+                disabled={disabled}
                 onClick={() => setIsOpen(!isOpen)}
             >
                 {selectedTime}
@@ -67,6 +69,7 @@ export default function AddTime({onTimeSelect, value}) {
                                     key={time}
                                     variant="ghost"
                                     className="w-full justify-start"
+                                    type="button"
                                     onClick={() => handleTimeSelect(time)}
                                 >
                                     {time}

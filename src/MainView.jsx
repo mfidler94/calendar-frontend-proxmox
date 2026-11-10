@@ -27,14 +27,30 @@ function MainView() {
     } = useEventStore();
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        const refresh = () => {
+            const from = userSelectedDate.startOf("month").toISOString();
+            const to = userSelectedDate.endOf("month").toISOString();
+            fetchEvents({ from, to });
+            fetchUsers();
+        };
 
-    useEffect(() => {
-        const from = userSelectedDate.startOf("month").toISOString();
-        const to = userSelectedDate.endOf("month").toISOString();
-        fetchEvents({ from, to });
-    }, [fetchEvents, userSelectedDate, selectedRoom]);
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === "visible") {
+                refresh();
+            }
+        };
+
+        refresh();
+        const interval = window.setInterval(refresh, 60_000);
+        window.addEventListener("focus", refresh);
+        document.addEventListener("visibilitychange", refreshWhenVisible);
+
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener("focus", refresh);
+            document.removeEventListener("visibilitychange", refreshWhenVisible);
+        };
+    }, [fetchEvents, fetchUsers, userSelectedDate, selectedRoom]);
 
 
     return (
